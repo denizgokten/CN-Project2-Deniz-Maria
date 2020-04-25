@@ -7,7 +7,7 @@
 int verbose = ALL;
 
 
-/* empty node for buffer */
+/* create empty an empty linked list to use as buffer for storing packets */
 node create_node(tcp_packet *pkt) {
   node temp = (node)malloc(sizeof(struct linked_list));
   temp->pkt = pkt;
