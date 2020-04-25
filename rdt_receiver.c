@@ -129,7 +129,7 @@ main (int argc, char **argv)
   setsockopt (sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *) &optval,
 	      sizeof (int));
 
-  /*
+  /* 
    * build the server's Internet address
    */
   bzero ((char *) &serveraddr, sizeof (serveraddr));
