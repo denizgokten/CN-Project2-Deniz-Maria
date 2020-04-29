@@ -9,10 +9,10 @@ int verbose = ALL;
 
 /* create empty an empty linked list to use as buffer for storing packets */
 node create_node(tcp_packet *pkt) {
-  node temp = (node)malloc(sizeof(struct linked_list));
-  temp->pkt = pkt;
-  temp->next = NULL;
-  return temp;
+  node temp = (node)malloc(sizeof(struct linked_list)); // allocate memory for new node
+  temp->pkt = pkt;   // insert pkt into new node 
+  temp->next = NULL; // assign NULL to next node
+  return temp; // return pointer to new node 
 }
 
 /*
@@ -22,4 +22,3 @@ void error(char *msg) {
     perror(msg);
     exit(1);
 }
-
