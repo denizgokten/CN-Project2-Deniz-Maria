@@ -13,45 +13,47 @@
 
 #include "common.h"
 
-#define RETRY 500		// milliseconds
+#define RETRY 500		   // milliseconds
 
-int window_size = 5;		
+int window_size = 10;	   // window size	
 int sockfd;			
 struct sockaddr_in serveraddr;
 int serverlen;
-node sndpkts_head = NULL;
-node sndpkts_tail = NULL;
+node sndpkts_head = NULL; // points to first node
+node sndpkts_tail = NULL; // points to last node 
 struct itimerval timer;
 sigset_t sigmask;
 
-
+// slide window forward when getting an ACK for higher packet number 
 int free_pkts (int last_byte_acked)
 {
-  int packets_freed = 0;
-  node cur = sndpkts_head;
-  node next_node;
+  int packets_freed = 0;   // number of packets freed 
+  node cur = sndpkts_head; // cur = first node
+  node next_node; 
   while (1)
     {
+    	// if current node sequence number is smaller than last bye ACKed
       if (cur && cur->pkt->hdr.seqno < last_byte_acked &&
 	  cur->pkt->hdr.data_size)
 	{
-	  next_node = cur->next;
-	  free (cur->pkt);
-	  free (cur);
-	  packets_freed++;
-	  cur = next_node;
+	  next_node = cur->next; // assign value of next node 
+	  free (cur->pkt); // deallocate data memory
+	  free (cur);      // deallocate node memory 
+	  packets_freed++; // increase number of packets freed 
+	  cur = next_node; // assign next node to current node 
 	}
+	   // otherwise break loop
       else
 	{
 	  break;
 	}
     }
-  sndpkts_head = cur;
-  if (!sndpkts_head)
+  sndpkts_head = cur; // assign current node to head 
+  if (!sndpkts_head)  // if head is null 
     {
-      sndpkts_tail = sndpkts_head;
+      sndpkts_tail = sndpkts_head; // assign value of head to tail
     }
-  return packets_freed;
+  return packets_freed; // return number of packets freed 
 }
 
 void
