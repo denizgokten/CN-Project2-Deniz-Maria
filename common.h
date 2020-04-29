@@ -14,13 +14,13 @@ extern int verbose;
 #define ALL     0x111
 
 struct linked_list {
-  tcp_packet *pkt;
-  struct linked_list *next;
+  tcp_packet *pkt;          // tcp_packet data field 
+  struct linked_list *next; // pointer to next node 
 };
 
-typedef struct linked_list *node;
+typedef struct linked_list *node; // define linked list node
 
-node create_node(tcp_packet *pkt);
+node create_node(tcp_packet *pkt); // create node and return pointer to it 
 
 #define VLOG(level, ...)            \
   if (level & verbose) {            \
