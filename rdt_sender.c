@@ -18,10 +18,13 @@
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 
-#define RETRY 100		   // milliseconds
+#define RETRY 90		   // milliseconds
 
 int window_size = 1;	   // window size	
 int ssthresh = 64;         // slow start threshhold
+int duplicate = 0;         // record duplicate ACKs
+float rtt_increase = 0.0;  // increase 1/CWND 
+int start = 1; 
 int sockfd;			
 struct sockaddr_in serveraddr;
 int serverlen;
@@ -66,7 +69,7 @@ int free_pkts (int last_byte_acked)
 void
 resend_packets (int sig)
 {
-  if (sig == SIGALRM)
+  if (sig == SIGALRM) // if timeout occured 
     {
       //Resend all packets range between 
       //sendBase and nextSeqNum
@@ -77,9 +80,10 @@ resend_packets (int sig)
 	{
 	  error ("sendto");
 	}
+
+       ssthresh = max(window_size/2, 2); // set ssthresh value half of window size
+       window_size = 1;  // reset window size to 1 
     }
-     ssthresh = max(window_size/2, 2); 
-     window_size = 1;
 }
 
 void
@@ -167,14 +171,15 @@ main (int argc, char **argv)
   int last_byte_acked = 0;
   int num_pkts_sent = 0;
   int done = 0;
+  ssthresh = 64;
 
   while (1)
     {
       gettimeofday(&gettime, NULL);
       fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
 
-      VLOG (DEBUG, "Packets in flight: %d, CWND: %d", num_pkts_sent,
-	    window_size);
+      VLOG (DEBUG, "Packets in flight: %d, CWND: %d, Ssthresh: %d", num_pkts_sent,
+	    window_size, ssthresh);
 
       /* Send packets within window size */
       while (!done && num_pkts_sent < window_size)
@@ -243,18 +248,37 @@ main (int argc, char **argv)
       recvpkt = (tcp_packet *) buffer;
       VLOG (DEBUG, "Recieved ACK: %d, Last inorder ACK: %d\n",
 	    recvpkt->hdr.ackno, last_byte_acked);
+
+      if (start == 1 ) {
+          start = 0;
+          ssthresh = 64;
+      }
+
       assert (get_data_size (recvpkt) <= DATA_SIZE);
 
-      if (recvpkt->hdr.ackno > last_byte_acked)
+      if (recvpkt->hdr.ackno > last_byte_acked) // recieved ACK is larger than last byte ACKed
 	{
-	  last_byte_acked = recvpkt->hdr.ackno;
-	  stop_timer ();
-	  int packets_freed = free_pkts (last_byte_acked);
-	  num_pkts_sent -= packets_freed;
+          duplicate = 0;
+	  last_byte_acked = recvpkt->hdr.ackno;   // update last byte ACKed value 
+	  stop_timer ();                          // stop timer 
+	  int packets_freed = free_pkts (last_byte_acked); // free packet 
+	  num_pkts_sent -= packets_freed; // subtract packets freed prom packets sent
 
-	  start_timer ();
+	 // window_size += 1;
+          
+          if ( window_size < ssthresh ) { // slow start
+	  	window_size += 1; // increase window size by one 
+          }
+          else { // congestion avoidance 
+                rtt_increase += ((1.0)/window_size);
+                printf("rtt increase %2.2f\n", rtt_increase);
+                if (rtt_increase >= 1) {
+                   window_size = window_size + (int)rtt_increase;
+                   rtt_increase = 0.0;
+                }
+          }
 
-	  window_size += 1; 
+          start_timer (); // re-start timer 
 
 	  /* send last packet */
 	  if (done)
@@ -273,10 +297,26 @@ main (int argc, char **argv)
 		}
 	    }
 	}
+       else if (recvpkt->hdr.ackno == last_byte_acked) {
+          duplicate += 1;       // increment duplicate ACKs count 
+
+          if (duplicate == 3){  // if 3 duplicates ACKs are recieved 
+              duplicate = 0;    // reset dulplicate count 
+              ssthresh = max(window_size/2, 2); // ssthresh equals half of window size 
+              window_size = 1;  // reset window size to one 
+              VLOG(INFO, "Triple ACK");
+              VLOG(INFO, "Re-sending packet %d", sndpkts_head->pkt->hdr.ackno);
+
+              if (sendto(sockfd, sndpkts_head->pkt,
+                 TCP_HDR_SIZE + get_data_size(sndpkts_head->pkt), 0,
+                 (const struct sockaddr *)&serveraddr, serverlen) < 0) {
+                    error("sendto");
+             }
+          }
+       }
     }
 
   return 0;
 }
-
 
 
