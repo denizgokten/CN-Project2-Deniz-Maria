@@ -13,9 +13,15 @@
 
 #include "common.h"
 
-#define RETRY 500		   // milliseconds
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
 
-int window_size = 10;	   // window size	
+#define RETRY 100		   // milliseconds
+
+int window_size = 1;	   // window size	
+int ssthresh = 64;         // slow start threshhold
 int sockfd;			
 struct sockaddr_in serveraddr;
 int serverlen;
@@ -23,6 +29,7 @@ node sndpkts_head = NULL; // points to first node
 node sndpkts_tail = NULL; // points to last node 
 struct itimerval timer;
 sigset_t sigmask;
+struct timeval gettime; 
 
 // slide window forward when getting an ACK for higher packet number 
 int free_pkts (int last_byte_acked)
@@ -71,6 +78,8 @@ resend_packets (int sig)
 	  error ("sendto");
 	}
     }
+     ssthresh = max(window_size/2, 2); 
+     window_size = 1;
 }
 
 void
@@ -112,6 +121,7 @@ main (int argc, char **argv)
   char *hostname;
   char buffer[DATA_SIZE];
   FILE *fp;
+  FILE *cwnd; 
 
   /* check command line arguments */
   if (argc != 4)
@@ -126,6 +136,8 @@ main (int argc, char **argv)
     {
       error (argv[3]);
     }
+
+  cwnd = fopen("cwnd.csv", "w"); // open file to record window size 
 
 
   /* socket: create the socket */
@@ -158,6 +170,8 @@ main (int argc, char **argv)
 
   while (1)
     {
+      gettimeofday(&gettime, NULL);
+      fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
 
       VLOG (DEBUG, "Packets in flight: %d, CWND: %d", num_pkts_sent,
 	    window_size);
@@ -239,6 +253,8 @@ main (int argc, char **argv)
 	  num_pkts_sent -= packets_freed;
 
 	  start_timer ();
+
+	  window_size += 1; 
 
 	  /* send last packet */
 	  if (done)
