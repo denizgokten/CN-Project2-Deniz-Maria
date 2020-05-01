@@ -22,6 +22,12 @@ typedef struct linked_list *node; // define linked list node
 
 node create_node(tcp_packet *pkt); // create node and return pointer to it 
 
+// function to return larger value 
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
 #define VLOG(level, ...)            \
   if (level & verbose) {            \
     fprintf(stderr, ##__VA_ARGS__); \
