@@ -256,7 +256,8 @@ main (int argc, char **argv)
       // program starts with ssthresh = 64 
       if (connection == 0 ) {
           connection = 1;
-          ssthresh = 100;
+          ssthresh = 64;
+          fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
       }
 
       assert (get_data_size (recvpkt) <= DATA_SIZE);
@@ -319,8 +320,6 @@ main (int argc, char **argv)
           if ((duplicate == 3) && (recvpkt->hdr.ackno != tripleACK)){  
               tripleACK = recvpkt->hdr.ackno;  // store packet ACK number 
               resend_packets(duplicate);       // resend packet 
-              gettimeofday(&gettime, NULL);
-              fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
               duplicate = 0;                   // reset dulplicate count 
           }
        }
