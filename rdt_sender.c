@@ -13,7 +13,7 @@
 
 #include "common.h"
 
-#define RETRY 90		   // milliseconds
+#define RETRY 90           // milliseconds
 
 int window_size = 1;	   // window size	
 int ssthresh = 64;         // slow start threshhold
@@ -21,6 +21,7 @@ int duplicate = 0;         // record duplicate ACKs
 float rtt_increase = 0.0;  // increase 1/CWND 
 int connection = 0;        // connection has been established
 int tripleACK;             // store ACK no of last triple ACked packet 
+int restart = 0;           // loss occured
 int sockfd;			
 struct sockaddr_in serveraddr;
 int serverlen;
@@ -67,10 +68,11 @@ resend_packets (int sig)
 {
   if ((sig == SIGALRM) || (sig == 3)) // if timeout or dup ACKs 
     {
+      gettimeofday(&gettime, NULL);
       //Resend all packets range between 
       //sendBase and nextSeqNum
       if (sig == SIGALRM) { 
-      	VLOG (INFO, "Timout happend"); } 
+      	VLOG (INFO, "Timout happend");} 
       else {
         VLOG (INFO, "Triple ACK");}
 
@@ -82,9 +84,12 @@ resend_packets (int sig)
 	{
 	  error ("sendto");
 	}
-
+       
        ssthresh = max(window_size/2, 2); // set ssthresh value half of window size
-       window_size = 1;  // reset window size to 1 
+       if (window_size != 1) {
+      	 window_size = 1;  // reset window size to 1 
+         restart = 1;
+       }
     }
 }
 
@@ -175,11 +180,8 @@ main (int argc, char **argv)
 
   while (1)
     {
-      gettimeofday(&gettime, NULL);
-      fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
-
       VLOG (DEBUG, "Packets in flight: %d CWND:  %d Ssthresh: %d", num_pkts_sent,
-	    window_size, ssthresh);
+      window_size, ssthresh);
 
       /* Send packets within window size */
       while (!done && num_pkts_sent < window_size)
@@ -204,17 +206,18 @@ main (int argc, char **argv)
 	  memcpy (pkt->data, buffer, len);     // copy packet data from buffer to pkt->data 
 	  pkt->hdr.data_size = len;            // assign len to packet data size 
 	  pkt->hdr.seqno = send_base;          // assign sequence number to packet seqno
-	  pkt->hdr.ackno = send_base + len;    // assign assign next packet to packet ackno 
-	  pkt->hdr.ctr_flags = DATA;
-	  if (!sndpkts_head)
+	  pkt->hdr.ackno = send_base + len;    // assign next packet sequence number to packet ackno 
+	  pkt->hdr.ctr_flags = DATA;           // set flag to DATA 
+
+	  if (!sndpkts_head) // if head is null 
 	    {
-	      sndpkts_head = create_node (pkt);
-	      sndpkts_tail = sndpkts_head;
+	      sndpkts_head = create_node (pkt); // create packet node and store address  
+	      sndpkts_tail = sndpkts_head;      // assign head to tail
 	    }
 	  else
 	    {
-	      sndpkts_tail->next = create_node (pkt);
-	      sndpkts_tail = sndpkts_tail->next;
+	      sndpkts_tail->next = create_node (pkt); // create packet node and store it in next tail node
+	      sndpkts_tail = sndpkts_tail->next; // assign sndpkts_tail->next to sndpkts_tail
 	    }
 
 	  VLOG (INFO, "Sending packet %d to %s", send_base,
@@ -253,7 +256,7 @@ main (int argc, char **argv)
       // program starts with ssthresh = 64 
       if (connection == 0 ) {
           connection = 1;
-          ssthresh = 64;
+          ssthresh = 100;
       }
 
       assert (get_data_size (recvpkt) <= DATA_SIZE);
@@ -265,11 +268,18 @@ main (int argc, char **argv)
 	  stop_timer ();                        // stop timer 
 	  int packets_freed = free_pkts (last_byte_acked); // free ACKed packet (slide window)
 	  num_pkts_sent -= packets_freed;       // subtract packets freed prom packets sent
+          if (restart == 1){
+                fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
+                restart = 0;
+          } 
 
           // slow start 
           if ( window_size < ssthresh ) { // if window size smaller than ssthresh 
 	  	window_size += 1;         // increase window size by one 
+                gettimeofday(&gettime, NULL);
+                fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
           }
+
           // congestion avoidance 
           else { 
                 rtt_increase += ((1.0)/window_size); // increase window by 1/cwnd 
@@ -277,8 +287,11 @@ main (int argc, char **argv)
                 if (rtt_increase >= 1) { // if value sums up to a whole 
                    window_size = window_size + (int)rtt_increase; // add floor of value to window size 
                    rtt_increase -= 1.0; // decrement value
+                   gettimeofday(&gettime, NULL);
+                   fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
                 }
           }
+          
 
           start_timer (); // start timer 
 
@@ -306,6 +319,8 @@ main (int argc, char **argv)
           if ((duplicate == 3) && (recvpkt->hdr.ackno != tripleACK)){  
               tripleACK = recvpkt->hdr.ackno;  // store packet ACK number 
               resend_packets(duplicate);       // resend packet 
+              gettimeofday(&gettime, NULL);
+              fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
               duplicate = 0;                   // reset dulplicate count 
           }
        }
