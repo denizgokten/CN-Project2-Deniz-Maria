@@ -34,6 +34,8 @@ struct timeval gettime;   // get current time
 // slide window forward when getting an ACK for higher packet number 
 int free_pkts (int last_byte_acked)
 {
+   // VLOG (INFO, "inside free_pkts");
+
   int packets_freed = 0;   // number of packets freed 
   node cur = sndpkts_head; // cur = pointer to first node
   node next_node;          // pointer to next node 
@@ -68,6 +70,7 @@ resend_packets (int sig)
 {
   if ((sig == SIGALRM) || (sig == 3)) // if timeout or dup ACKs 
     {
+       // VLOG (INFO, "in resend_pack");
       gettimeofday(&gettime, NULL);
       //Resend all packets range between 
       //sendBase and nextSeqNum
@@ -86,10 +89,13 @@ resend_packets (int sig)
 	}
        
        ssthresh = max(window_size/2, 2); // set ssthresh value half of window size
+       printf("ssthresh after retransmit:%d\n",ssthresh);
        if (window_size != 1) {
       	 window_size = 1;  // reset window size to 1 
          restart = 1;
+          // VLOG (INFO, "reset window size");
        }
+        // VLOG (INFO, "at the end of loop");
     }
 }
 
@@ -133,6 +139,8 @@ main (int argc, char **argv)
   FILE *fp;   // file to read data from 
   FILE *cwnd; // file showing window size over time
 
+  cwnd = fopen("cwnd.csv", "w"); // open file to record window size 
+
   /* check command line arguments */
   if (argc != 4)
     {
@@ -147,7 +155,7 @@ main (int argc, char **argv)
       error (argv[3]);
     }
 
-  cwnd = fopen("cwnd.csv", "w"); // open file to record window size 
+
 
 
   /* socket: create the socket */
@@ -172,6 +180,7 @@ main (int argc, char **argv)
 
   // Stop and wait protocol
   init_timer (RETRY, resend_packets); // resends packet if timeout 
+   VLOG (INFO, "out of resend");
   int next_seqno = 0;      // sequence number of next packet 
   int send_base = 0;       // next packet to be sent 
   int last_byte_acked = 0; // largest inorder ACK
@@ -187,7 +196,7 @@ main (int argc, char **argv)
       while (!done && num_pkts_sent < window_size)
 	{
 	  int len = fread (buffer, 1, DATA_SIZE, fp); // read data from fp and store in buffer 
-
+    // VLOG (INFO, "len is %d", len);
 	  if (len <= 0)
 	    {
 	      VLOG (INFO, "End Of File has been reached");
@@ -275,14 +284,15 @@ main (int argc, char **argv)
           } 
 
           // slow start 
-          if ( window_size < ssthresh ) { // if window size smaller than ssthresh 
-	  	window_size += 1;         // increase window size by one 
+          if ( window_size <= ssthresh ) { // if window size smaller than ssthresh 
+	  	          window_size += 1;         // increase window size by one 
                 gettimeofday(&gettime, NULL);
                 fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
           }
 
           // congestion avoidance 
           else { 
+                // printf("Congestion avoidance began");
                 rtt_increase += ((1.0)/window_size); // increase window by 1/cwnd 
                 printf("rtt increase %2.2f\n", rtt_increase);
                 if (rtt_increase >= 1) { // if value sums up to a whole 
@@ -309,6 +319,7 @@ main (int argc, char **argv)
 		    {
 		      error ("sendto");
 		    }
+      fclose(cwnd);  
 		  exit (EXIT_SUCCESS);
 		}
 	    }
@@ -318,6 +329,7 @@ main (int argc, char **argv)
 
           // if 3 duplicates ACKs are recieved for a packet the first time 
           if ((duplicate == 3) && (recvpkt->hdr.ackno != tripleACK)){  
+             VLOG (INFO, "Packet loss: 3 duplicate acks received. Timeout ");
               tripleACK = recvpkt->hdr.ackno;  // store packet ACK number 
               resend_packets(duplicate);       // resend packet 
               duplicate = 0;                   // reset dulplicate count 
