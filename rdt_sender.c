@@ -267,7 +267,7 @@ main (int argc, char **argv)
       if (connection == 0 ) {
           connection = 1;
           ssthresh = 64;
-          fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
+          fprintf(cwnd, "%llu: %d\n", (gettime.tv_sec*1000LL + (gettime.tv_usec/1000)), window_size);
       }
 
       assert (get_data_size (recvpkt) <= DATA_SIZE);
@@ -281,15 +281,15 @@ main (int argc, char **argv)
 	  num_pkts_sent -= packets_freed;       // subtract packets freed prom packets sent
      
           if (restart == 1){
-                fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
-                restart = 0;
+              fprintf(cwnd, "%llu: %d\n", (gettime.tv_sec*1000LL + (gettime.tv_usec/1000)), window_size);
+              restart = 0;
           } 
 
           // slow start 
           if ( window_size < ssthresh ) { // if window size smaller than ssthresh 
-	  	window_size += 1;         // increase window size by one 
+	  	          window_size += 1;         // increase window size by one 
                 gettimeofday(&gettime, NULL);
-                fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
+                fprintf(cwnd, "%llu: %d\n", (gettime.tv_sec*1000LL + (gettime.tv_usec/1000)), window_size);
           }
 
           // congestion avoidance 
@@ -301,7 +301,7 @@ main (int argc, char **argv)
                    window_size = window_size + (int)rtt_increase; // add value to window size 
                    rtt_increase -= 1.0; // decrement rrt_increase
                    gettimeofday(&gettime, NULL); 
-                   fprintf(cwnd, "%lu:%lu -> %d \n", gettime.tv_sec, gettime.tv_usec, window_size);
+                   fprintf(cwnd, "%llu: %d\n", (gettime.tv_sec*1000LL + (gettime.tv_usec/1000)), window_size);
                 }
           }
           
@@ -321,7 +321,7 @@ main (int argc, char **argv)
 		    {
 		      error ("sendto");
 		    }
-                  fclose(cwnd);  // close file 
+      fclose(cwnd);  // close file 
 		  exit (EXIT_SUCCESS); // exit 
 		}
 	    }
