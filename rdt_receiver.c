@@ -20,9 +20,8 @@
  */
 
 
-/* add to cache and write from cache functions are taken 
-from an online source  with some adjustments and added 
-commenting */
+/* add to cache and write from cache functions are both taken 
+from an online source with adjustments made*/
 
 node cache_head = NULL;		/* first node in cache */
 int expected_seqno = 0;		/* expected packet sequence number */
@@ -35,78 +34,90 @@ void
 add_to_cache (tcp_packet * orig_pkt)
 {
   tcp_packet *pkt = make_packet (orig_pkt->hdr.data_size);	/* create new packet */
-  memcpy (pkt->data, orig_pkt->data, orig_pkt->hdr.data_size);	/* copy data from original packet */
-  pkt->hdr.data_size = orig_pkt->hdr.data_size;	/* copy data size */
-  pkt->hdr.seqno = orig_pkt->hdr.seqno;	/* copy sequence number */
-  pkt->hdr.ackno = orig_pkt->hdr.ackno;	/* copy ACK number */
-  pkt->hdr.ctr_flags = orig_pkt->hdr.ctr_flags;	/* copy flags */
+  memcpy (pkt->data, orig_pkt->data, orig_pkt->hdr.data_size);	/* get data from original packet */
+  pkt->hdr.data_size = orig_pkt->hdr.data_size;	                /* get data size */
+  pkt->hdr.seqno = orig_pkt->hdr.seqno;	        /* get sequence number */
+  pkt->hdr.ackno = orig_pkt->hdr.ackno;	        /* get ACK number */
+  pkt->hdr.ctr_flags = orig_pkt->hdr.ctr_flags;	/* get flags */
 
-  node new_node = create_node (pkt);	/* create new node */
+  node new_node = create_node (pkt);  /* create new node */
 
-  if (!cache_head)		/* if cache head is null */
+  if (!cache_head)		/* if cache head is null (cache is empty) */
     {
       cache_head = new_node;	/* assign new node to cache head */
-      return;
+      return;                   /* return from function */
     }
-/* if new packet sequence number is smaller than cache head sequence number */
+
+  /* if new packet sequence number is smaller than cache head sequence number */
   else if (new_node->pkt->hdr.seqno < cache_head->pkt->hdr.seqno)
     {
-      new_node->next = cache_head;	/* store cache head in the next node of the linked list */
-      cache_head = new_node;	/* assign new node to cache head */
-      return;
+      new_node->next = cache_head;   /* assign cache head to next node of the linked list */
+      cache_head = new_node;	     /* assign the new node to cache head */
+      return;                        /* return from function */
     }
-  node cur_node = cache_head;	/* assign value of cache head to current node */
+  
 
-/* while next current node is not NULL and the sequence number of the next */
-/* current node is smaller than the sequence number of the new node */
+  /* new packet sequence number is larger than cache head sequence number */
+  node cur_node = cache_head;	/* assign cache head to current node */
+
+  /* while next current node is not NULL and the sequence number of next */
+  /* current node is smaller than the sequence number of the new node */
+  /* loop through cur_node linked list */
   while (cur_node->next &&
 	 cur_node->next->pkt->hdr.seqno < new_node->pkt->hdr.seqno)
     {
-      cur_node = cur_node->next;	/* assign value of next node to current node */
-      /* if current node sequence number is equal to new node sequence number break loop */
+      cur_node = cur_node->next;	/* assign next node to current node */
+      /* if current node sequence number is equal to new node sequence number */
       if (cur_node->pkt->hdr.seqno == new_node->pkt->hdr.seqno)
 	{
-	  break;
+	  break; /* break loop */
 	}
     }
-  node next_node = cur_node->next;	/* assing value of next node to next_node */
-  cur_node->next = new_node;	/* assign value of new node to next current node */
-  new_node->next = next_node;	/* assign value of next node to next new node */
+  
+  /* shift next curent node to the next node and place the new node in its place */
+  node next_node = cur_node->next; /* assign next node to next_node */
+  cur_node->next = new_node;	   /* assign new node to next current node */
+  new_node->next = next_node;	   /* assign next node to next new node */
 }
 
 
-/* writes in order packets from cache into the file and then frees them */
+/* writes in order packets from cache into the file and deallocates memory */
 node
 write_from_cache (FILE * fp)
 {
   node cur_node = cache_head;	/* assign cache head to current node */
 
-  /* while current node is not NULL and current node is equal */
-  /* to the expected in order sequence number */
+  /* while current node is not NULL and current node sequence number */
+  /* is equal to the expected in order sequence number */
   while (cur_node && cur_node->pkt->hdr.seqno == expected_seqno)
     {
       VLOG (DEBUG, "Writing packet: %d", cur_node->pkt->hdr.seqno);
-      fseek (fp, cur_node->pkt->hdr.seqno, SEEK_SET);	/* go to sequence number */
-      fwrite (cur_node->pkt->data, 1, cur_node->pkt->hdr.data_size, fp);	/* write to file */
+      fseek (fp, cur_node->pkt->hdr.seqno, SEEK_SET);  /* go to sequence number in file */
+      fwrite (cur_node->pkt->data, 1, cur_node->pkt->hdr.data_size, fp); /* write to the file */
       expected_seqno = cur_node->pkt->hdr.seqno + cur_node->pkt->hdr.data_size;	/* update expected sequence number (current pkt sequence number + current pkt data size); */
-      node next_node = cur_node->next;
-      free (cur_node);		/* free current node */
-      cur_node = next_node;	/* assign value of next node to current node */
+      
+      /* free current node and assign next current node in its place */
+      node next_node = cur_node->next; /* assign next node to next_node */
+      free (cur_node);		       /* free current node */
+      cur_node = next_node;	       /* assign next node to current node */
     }
-  cache_head = cur_node;	/* assign value of current node to cache head */
-  return cache_head;
+
+  cache_head = cur_node;	/* assign current node to cache head */
+  return cache_head;            /* return cache head */
 }
+
+
+tcp_packet *recvpkt;          /* receive packet */
+tcp_packet *sndpkt;           /* acknowledge received packet */
 
 int
 main (int argc, char **argv)
 {
-  tcp_packet *recvpkt;
-  tcp_packet *sndpkt;
   int sockfd;			/* socket */
   int portno;			/* port to listen on */
   int clientlen;		/* byte size of client's address */
-  struct sockaddr_in serveraddr;	/* server's addr */
-  struct sockaddr_in clientaddr;	/* client addr */
+  struct sockaddr_in serveraddr;  /* server's addr */
+  struct sockaddr_in clientaddr;  /* client addr */
   FILE *fp;			/* file pointer to write to */
   char buffer[MSS_SIZE];
   struct timeval tp;
@@ -194,23 +205,22 @@ main (int argc, char **argv)
       VLOG (INFO, "%lu.%06lu, %d, %d", tp.tv_sec, tp.tv_usec,
 	    recvpkt->hdr.data_size, recvpkt->hdr.seqno);
 
-      /* if sequence number is greater than expected sequence packet value in cache */
+      /* if received packet sequence number is greater than expected sequence number */
       if (recvpkt->hdr.seqno > expected_seqno)
 	{
-	  add_to_cache (recvpkt);
+	  add_to_cache (recvpkt); /* buffer packet to cache */ 
 	}
-      /* if sequence number equals expected sequence store packet in cache then write 
-         from the cache into the file */
+      /* else if recieved packet sequence number equals expected sequence number*/
       else if (recvpkt->hdr.seqno == expected_seqno)
 	{
-	  add_to_cache (recvpkt);
-	  write_from_cache (fp);
+	  add_to_cache (recvpkt); /* buffer packet to cache */
+	  write_from_cache (fp);  /* write packet from cache to file */
 	}
 
       /* acknowledge recieved packet */
-      sndpkt = make_packet (0);
-      sndpkt->hdr.ackno = expected_seqno;
-      sndpkt->hdr.ctr_flags = ACK;
+      sndpkt = make_packet (0);           /* make packet */
+      sndpkt->hdr.ackno = expected_seqno; /* set expected sequence number */
+      sndpkt->hdr.ctr_flags = ACK;        /* set flag to ACK */
       if (sendto
 	  (sockfd, sndpkt, TCP_HDR_SIZE, 0, (struct sockaddr *) &clientaddr,
 	   clientlen) < 0)
