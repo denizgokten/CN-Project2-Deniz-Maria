@@ -265,9 +265,9 @@ main (int argc, char **argv)
       
       // program starts with ssthresh = 64 
       if (connection == 0 ) {
-          connection = 1;
-          ssthresh = 64;
-          fprintf(cwnd, "%lu : %d\n", (gettime.tv_sec*1000 + (gettime.tv_usec/1000)), window_size);
+          connection = 1; // connection has been made
+          ssthresh = 64;  // initialize ssthresh 
+          fprintf(cwnd, "%lu : %d\n", (gettime.tv_sec*1000 + (gettime.tv_usec/1000)), window_size); // record cwnd 
       }
 
       assert (get_data_size (recvpkt) <= DATA_SIZE);
@@ -280,9 +280,9 @@ main (int argc, char **argv)
 	  int packets_freed = free_pkts (last_byte_acked); // free ACKed packet (slide window)
 	  num_pkts_sent -= packets_freed;       // subtract packets freed prom packets sent
      
-          if (restart == 1){
-          fprintf(cwnd, "%lu : %d\n", (gettime.tv_sec*1000 + (gettime.tv_usec/1000)), window_size);
-              restart = 0;
+          if (restart == 1){ // if dup ACK or timeout
+              fprintf(cwnd, "%lu : %d\n", (gettime.tv_sec*1000 + (gettime.tv_usec/1000)), window_size); // record cwnd
+              restart = 0; // reset variable
           } 
 
           // slow start 
@@ -321,7 +321,7 @@ main (int argc, char **argv)
 		    {
 		      error ("sendto");
 		    }
-      fclose(cwnd);  // close file 
+                  fclose(cwnd);  // close file 
 		  exit (EXIT_SUCCESS); // exit 
 		}
 	    }
