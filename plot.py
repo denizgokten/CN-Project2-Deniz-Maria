@@ -15,7 +15,11 @@ for line in fp:
 
 
 fig = plt.figure(figsize=(20,5), dpi=300)
-plt.plot(time, cwnd, lw=2,color='maroon')
+# plt.plot(time, cwnd, lw=2,color='maroon')
+ax = fig.add_subplot(111)
+ax.set_xticks(time)
+ax.set_yticks(cwnd, minor=True)
+ax.plot(time, cwnd,lw=2,color='maroon')
 
 
 plt.title("Congestion Window Over Time", fontsize=20)
